@@ -1,0 +1,78 @@
+(defn read-blosum-line [l letters]
+  [l (zipmap letters (map #(Integer/parseInt %) (drop 1 (clojure.string/split (read-line) #" +"))))]
+  )
+
+(defn read-blosum []
+  (with-in-str (slurp "/home/kappa/work/bioinf/module-5/5.10.3-blosum/BLOSUM62.txt")
+    (let [letters (drop 1 (clojure.string/split (read-line) #" +"))]
+      (reduce #(assoc %1 (first %2) (last %2))
+              {}
+              (map #(read-blosum-line % letters) letters)))
+    ))
+
+(def blosum (read-blosum))
+
+(def s (read-line))
+(def t (read-line))
+
+(defn minus-fives []
+  (map - (filter #(zero? (mod % 5)) (range))))
+
+(defn fill-zeros [columns lines]
+  (vec (cons (vec (map #(vector % 1) (take (inc columns) (minus-fives))))
+             (take lines (map #(vector [% 0]) (rest (minus-fives)))))))
+
+;(prn (fill-zeros 4 6))
+
+(defn get-score [scores line col]
+  (let [el (get-in scores [line col])]
+    (if (vector? el) (first el) el)))
+
+(defn fill-rest-reducer [scores [line col]]
+;  (prn "L C:" line col)
+;  (prn "BL chars:" (get s (dec col)) (get t (dec line)))
+;  (prn "BL:" (get-in blosum [(str (get s (dec col))) (str (get t (dec line)))]))
+  (let
+    [step [(- (get-score scores (dec line) col) 5)
+           (- (get-score scores line (dec col)) 5)
+           (+ (get-score scores (dec line) (dec col))
+                  (get-in blosum [(str (get s (dec col))) (str (get t (dec line)))]))]]
+    (assoc-in scores [line col]
+              [(apply max step) (max-key step 0 2 1)])))
+
+(defn fill-rest [scores]
+  (reduce fill-rest-reducer
+          scores
+          (for [line (range 1 (inc (count t)))
+                column (range 1 (inc (count s)))] [line column])))
+
+(defn backtrack [scores line col path]
+;  (prn "BACK: " line col path)
+  (cond
+    (and (zero? line) (zero? col)) path
+    (= (get-in scores [line col 1]) 0) (backtrack scores (dec line) col (conj path \|))
+    (= (get-in scores [line col 1]) 1) (backtrack scores line (dec col) (conj path \-))
+    :else (backtrack scores (dec line) (dec col) (conj path \\))))
+
+(def walked (fill-rest (fill-zeros (count s) (count t))))
+
+;(prn "WALKED:")
+;(doseq [line walked]
+;  (prn line))
+
+(def align-mask (reverse (backtrack walked
+                                        (count t)
+                                        (count s)
+                                        [])))
+
+(println (get-in walked [(count t) (count s) 0]))
+
+(defn print-masked [mask string skip result]
+  (if (seq mask) 
+    (if (= (first mask) skip)
+      (recur (rest mask) string skip (conj result \-))
+      (recur (rest mask) (rest string) skip (conj result (first string))))
+    result))
+
+(println (apply str (print-masked align-mask s \| [])))
+(println (apply str (print-masked align-mask t \- [])))
