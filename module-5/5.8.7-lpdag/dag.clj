@@ -16,7 +16,7 @@
 (defn read-adjlist []
   (reduce add-edge
           {}
-          (map #(vec (split % #"\D+")) (line-seq (java.io.BufferedReader. *in*)))))
+          (map #(vec (split % #"[->:]+")) (line-seq (java.io.BufferedReader. *in*)))))
 
 (def graph (read-adjlist))
 
